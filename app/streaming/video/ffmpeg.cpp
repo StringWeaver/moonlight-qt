@@ -3,6 +3,7 @@
 #include "streaming/session.h"
 
 #include <h264_stream.h>
+#include <ScopedSignpost.h>
 
 extern "C" {
 #include <libavutil/mastering_display_metadata.h>
@@ -943,8 +944,13 @@ IFFmpegRenderer* FFmpegVideoDecoder::createHwAccelRenderer(const AVCodecHWConfig
 #endif
 #ifdef Q_OS_DARWIN
         case AV_HWDEVICE_TYPE_VIDEOTOOLBOX:
-            // Prefer the Metal renderer if hardware is compatible
-            return VTMetalRendererFactory::createRenderer(true);
+            if(StreamingPreferences::get()->useSystemRenderer) {
+                return VTRendererFactory::createRenderer();
+            } 
+            else {
+                // Prefer the Metal renderer if hardware is compatible
+                return VTMetalRendererFactory::createRenderer(true);
+            }
 #endif
 #ifdef HAVE_LIBVA
         case AV_HWDEVICE_TYPE_VAAPI:
@@ -1678,7 +1684,7 @@ void FFmpegVideoDecoder::decoderThreadProc()
                 // This might be a signal from the main thread to exit
                 continue;
             }
-
+            SCOPED_SIGNPOST("LiCompleteVideoFrame PTS: %u", du->presentationTimeMs % 5000);
             LiCompleteVideoFrame(handle, submitDecodeUnit(du));
         }
 
@@ -1772,6 +1778,7 @@ void FFmpegVideoDecoder::decoderThreadProc()
                     // while we're waiting for this to frame to come back.
                     if (LiPollNextVideoFrame(&handle, &du)) {
                         // FIXME: Handle EAGAIN on avcodec_send_packet() properly?
+                        SCOPED_SIGNPOST("LiCompleteVideoFrame PTS: %u", du->presentationTimeMs % 5000);
                         LiCompleteVideoFrame(handle, submitDecodeUnit(du));
                     }
                     else {

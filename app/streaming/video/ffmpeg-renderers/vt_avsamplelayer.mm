@@ -8,6 +8,7 @@
 #include <SDL_syswm.h>
 #include <Limelight.h>
 #include <streaming/session.h>
+#include <ScopedSignpost.h>
 
 #include <mach/mach_time.h>
 #import <Cocoa/Cocoa.h>
@@ -50,6 +51,7 @@ public:
                 updateOverlayOnMainThread((Overlay::OverlayType)i);
             });
         }
+        m_EnableRasterization = StreamingPreferences::get()->enableVTRasterization;
     }
 
     virtual ~VTRenderer() override
@@ -181,6 +183,7 @@ public:
 
     virtual void waitToRender() override
     {
+        SCOPED_SIGNPOST("waitToRender");
         if (m_DisplayLink != nullptr) {
             // Vsync is enabled, so wait for a swap before returning
             SDL_LockMutex(m_VsyncMutex);
@@ -195,6 +198,7 @@ public:
     // Caller frees frame after we return
     virtual void renderFrame(AVFrame* frame) override
     { @autoreleasepool {
+        SCOPED_SIGNPOST("RenderFrame, PTS:%d", frame->pts % 5000);
         OSStatus status;
         CVPixelBufferRef pixBuf = reinterpret_cast<CVPixelBufferRef>(frame->data[3]);
 
@@ -280,7 +284,7 @@ public:
         // Queue this sample for the next v-sync
         CMSampleTimingInfo timingInfo = {
             .duration = kCMTimeInvalid,
-            .presentationTimeStamp = CMClockMakeHostTimeFromSystemUnits(mach_absolute_time()),
+            .presentationTimeStamp = CMTimeMake(frame->pts, 1000),
             .decodeTimeStamp = kCMTimeInvalid,
         };
 
@@ -301,6 +305,11 @@ public:
 
         CFRelease(sampleBuffer);
     }}
+    
+    int getDecoderColorRange() override
+    {
+        return COLOR_RANGE_FULL;
+    }
 
     virtual bool initialize(PDECODER_PARAMETERS params) override
     { @autoreleasepool {
@@ -366,7 +375,7 @@ public:
             //
             // https://github.com/moonlight-stream/moonlight-qt/issues/493
             // https://github.com/moonlight-stream/moonlight-qt/issues/722
-            if (isAppleSilicon() && !(params->videoFormat & VIDEO_FORMAT_MASK_10BIT)) {
+            if (m_EnableRasterization) {
                 SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
                             "Using layer rasterization workaround");
                 if (info.info.cocoa.window.screen != nullptr) {
@@ -496,6 +505,7 @@ private:
     SDL_mutex* m_VsyncMutex;
     SDL_cond* m_VsyncPassed;
     bool m_DirectRendering;
+    bool m_EnableRasterization;
 };
 
 IFFmpegRenderer* VTRendererFactory::createRenderer() {

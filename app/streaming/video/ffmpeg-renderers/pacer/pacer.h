@@ -51,6 +51,7 @@ private:
     void dropFrameForEnqueue(QQueue<AVFrame*>& queue);
 
     QQueue<AVFrame*> m_RenderQueue;
+    QQueue<AVFrame*> m_PendingRenderQueue; // for aysnc rendering
     QQueue<AVFrame*> m_PacingQueue;
     QQueue<int> m_PacingQueueHistory;
     QQueue<int> m_RenderQueueHistory;
@@ -61,6 +62,7 @@ private:
     SDL_Thread* m_RenderThread;
     SDL_Thread* m_VsyncThread;
     bool m_Stopping;
+    bool m_LetRendererHandleFrameSkipping;
 
     IVsyncSource* m_VsyncSource;
     IFFmpegRenderer* m_VsyncRenderer;

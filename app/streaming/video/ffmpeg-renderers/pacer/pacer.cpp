@@ -12,6 +12,8 @@
 #include "waylandvsyncsource.h"
 #endif
 
+#include <ScopedSignpost.h>
+
 #include <SDL_syswm.h>
 
 // Limit the number of queued frames to prevent excessive memory consumption
@@ -32,6 +34,7 @@ Pacer::Pacer(IFFmpegRenderer* renderer, PVIDEO_STATS videoStats) :
     m_RenderThread(nullptr),
     m_VsyncThread(nullptr),
     m_Stopping(false),
+    m_LetRendererHandleFrameSkipping(false),
     m_VsyncSource(nullptr),
     m_VsyncRenderer(renderer),
     m_MaxVideoFps(0),
@@ -261,6 +264,7 @@ bool Pacer::initialize(SDL_Window* window, int maxVideoFps, bool enablePacing)
     m_MaxVideoFps = maxVideoFps;
     m_DisplayFps = StreamUtils::getDisplayRefreshRate(window);
     m_RendererAttributes = m_VsyncRenderer->getRendererAttributes();
+    m_LetRendererHandleFrameSkipping = StreamingPreferences::get()->useSystemRenderer;
 
     if (enablePacing) {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
@@ -332,6 +336,7 @@ void Pacer::signalVsync()
 
 void Pacer::renderFrame(AVFrame* frame)
 {
+    SCOPED_SIGNPOST("Pacer::renderFrame, PTS: %" PRId64, frame->pts % 5000);
     // Count time spent in Pacer's queues
     Uint32 beforeRender = SDL_GetTicks();
     m_VideoStats->totalPacerTime += beforeRender - frame->pkt_dts;
@@ -343,7 +348,9 @@ void Pacer::renderFrame(AVFrame* frame)
     m_VideoStats->totalRenderTime += afterRender - beforeRender;
     m_VideoStats->renderedFrames++;
     av_frame_free(&frame);
-
+    if(m_LetRendererHandleFrameSkipping){
+        return;
+    }
     // Drop frames if we have too many queued up for a while
     m_FrameQueueLock.lock();
 
@@ -398,6 +405,7 @@ void Pacer::dropFrameForEnqueue(QQueue<AVFrame*>& queue)
 
 void Pacer::submitFrame(AVFrame* frame)
 {
+    SCOPED_SIGNPOST("Pacer::submitFrame, PTS: %" PRId64, frame->pts % 5000);
     // Make sure initialize() has been called
     SDL_assert(m_MaxVideoFps != 0);
 
