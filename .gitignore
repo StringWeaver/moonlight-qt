@@ -5,3 +5,17 @@
 build/
 config.tests/*/.qmake.stash
 config.tests/*/Makefile
+app/release
+*.o
+*.a
+*.d
+*.dia
+**/.xcode/
+
+#qt
+moc_*
+ui_*
+*.moc
+qrc_*
+*_qml.cpp
+**/Moonlight.app/
