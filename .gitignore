@@ -11,6 +11,8 @@ app/release
 *.d
 *.dia
 **/.xcode/
+**/*.xcodeproj/
+
 
 #qt
 moc_*
@@ -19,3 +21,5 @@ ui_*
 qrc_*
 *_qml.cpp
 **/Moonlight.app/
+*.stash
+*qmlcache*
