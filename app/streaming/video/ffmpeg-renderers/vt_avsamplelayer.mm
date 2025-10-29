@@ -211,7 +211,7 @@ public:
 
             switch (colorspace) {
             case COLORSPACE_REC_709:
-                m_ColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceITUR_709);
+                m_ColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceCoreMedia709);
                 break;
             case COLORSPACE_REC_2020:
                 // This is necessary to ensure HDR works properly with external displays on macOS Sonoma.
