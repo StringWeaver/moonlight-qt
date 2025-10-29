@@ -16,6 +16,14 @@
 #import <AVFoundation/AVFoundation.h>
 #import <dispatch/dispatch.h>
 #import <Metal/Metal.h>
+#import <AppKit/AppKit.h>
+
+class VTRenderer;
+
+@interface CADisplayLinkCreator : NSObject
+- (instancetype)initWithRenderer:(VTRenderer*)renderer;
+- (CADisplayLink*) getDisplayLink: (NSView*) view;
+@end
 
 @interface VTView : NSView
 - (NSView *)hitTest:(NSPoint)point;
@@ -40,10 +48,12 @@ public:
           m_FormatDesc(nullptr),
           m_StreamView(nullptr),
           m_DisplayLink(nullptr),
+          m_DisplayLinkCreator(nullptr),
           m_LastColorSpace(-1),
           m_ColorSpace(nullptr),
           m_VsyncMutex(nullptr),
-          m_VsyncPassed(nullptr)
+          m_VsyncPassed(nullptr),
+          m_EnableFramePacing(false)
     {
         SDL_zero(m_OverlayTextFields);
         for (int i = 0; i < Overlay::OverlayMax; i++) {
@@ -62,12 +72,15 @@ public:
             dispatch_block_cancel(m_OverlayUpdateBlocks[i]);
             Block_release(m_OverlayUpdateBlocks[i]);
         }
-
-        if (m_DisplayLink != nullptr) {
-            CVDisplayLinkStop(m_DisplayLink);
-            CVDisplayLinkRelease(m_DisplayLink);
+        
+        if (m_DisplayLink) {
+            SDL_assert(m_DisplayLinkCreator != nullptr);
+            [m_DisplayLink invalidate];
+            //[m_DisplayLink release];
         }
-
+        if(m_DisplayLinkCreator != nullptr){
+            [m_DisplayLinkCreator release];
+        }
         if (m_VsyncPassed != nullptr) {
             SDL_DestroyCond(m_VsyncPassed);
         }
@@ -110,73 +123,37 @@ public:
     }}
 
     static
-    CVReturn
-    displayLinkOutputCallback(
-        CVDisplayLinkRef displayLink,
-        const CVTimeStamp* /* now */,
-        const CVTimeStamp* /* vsyncTime */,
-        CVOptionFlags,
-        CVOptionFlags*,
-        void *displayLinkContext)
+    void
+    displayLinkOutputCallback(CADisplayLink* sender, VTRenderer* me)
     {
-        auto me = reinterpret_cast<VTRenderer*>(displayLinkContext);
-
-        SDL_assert(displayLink == me->m_DisplayLink);
-
-        SDL_LockMutex(me->m_VsyncMutex);
-        SDL_CondSignal(me->m_VsyncPassed);
-        SDL_UnlockMutex(me->m_VsyncMutex);
-
-        return kCVReturnSuccess;
+        SDL_assert(sender == me->m_DisplayLink);
+        if(me->m_EnableFramePacing){
+            SDL_LockMutex(me->m_VsyncMutex);
+            SDL_CondSignal(me->m_VsyncPassed);
+            SDL_UnlockMutex(me->m_VsyncMutex);
+        }
     }
 
-    bool initializeVsyncCallback(SDL_SysWMinfo* info)
+    bool initializeVsyncCallback(int framerate)
     {
-        NSScreen* screen = [info->info.cocoa.window screen];
-        CVReturn status;
-        if (screen == nullptr) {
-            // Window not visible on any display, so use a
-            // CVDisplayLink that can work with all active displays.
-            // When we become visible, we'll recreate ourselves
-            // and associate with the new screen.
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
-                        "NSWindow is not visible on any display");
-            status = CVDisplayLinkCreateWithActiveCGDisplays(&m_DisplayLink);
+        
+        if(m_DisplayLinkCreator == nullptr) {
+            m_DisplayLinkCreator = [[CADisplayLinkCreator alloc] initWithRenderer: this];
         }
-        else {
-            CGDirectDisplayID displayId = [[screen deviceDescription][@"NSScreenNumber"] unsignedIntValue];
-            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
-                        "NSWindow on display: %x",
-                        displayId);
-            status = CVDisplayLinkCreateWithCGDisplay(displayId, &m_DisplayLink);
-        }
-        if (status != kCVReturnSuccess) {
+        m_DisplayLink = [m_DisplayLinkCreator getDisplayLink: m_StreamView];
+        
+        if (m_DisplayLink == nil) {
             SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                         "Failed to create CVDisplayLink: %d",
-                         status);
+                         "Failed to create CVDisplayLink");
             return false;
         }
-
-        status = CVDisplayLinkSetOutputCallback(m_DisplayLink, displayLinkOutputCallback, this);
-        if (status != kCVReturnSuccess) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                         "CVDisplayLinkSetOutputCallback() failed: %d",
-                         status);
-            return false;
-        }
-
+        [m_DisplayLink setPreferredFrameRateRange:CAFrameRateRangeMake(framerate, framerate, framerate)];
         // The CVDisplayLink callback uses these, so we must initialize them before
         // starting the callbacks.
         m_VsyncMutex = SDL_CreateMutex();
         m_VsyncPassed = SDL_CreateCond();
 
-        status = CVDisplayLinkStart(m_DisplayLink);
-        if (status != kCVReturnSuccess) {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                         "CVDisplayLinkStart() failed: %d",
-                         status);
-            return false;
-        }
+        [m_DisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 
         return true;
     }
@@ -184,7 +161,7 @@ public:
     virtual void waitToRender() override
     {
         SCOPED_SIGNPOST("waitToRender");
-        if (m_DisplayLink != nullptr) {
+        if (m_EnableFramePacing) {
             // Vsync is enabled, so wait for a swap before returning
             SDL_LockMutex(m_VsyncMutex);
             if (SDL_CondWaitTimeout(m_VsyncPassed, m_VsyncMutex, 100) == SDL_MUTEX_TIMEDOUT) {
@@ -306,13 +283,9 @@ public:
         CFRelease(sampleBuffer);
     }}
     
-    int getDecoderColorRange() override
-    {
-        return COLOR_RANGE_FULL;
-    }
-
     virtual bool initialize(PDECODER_PARAMETERS params) override
-    { @autoreleasepool {
+    {
+        //The AppKit and UIKit frameworks process each event-loop iteration (such as a mouse down event or a tap) within an autorelease pool block. Therefore you typically do not have to create an autorelease pool block yourself, or even see the code that is used to create one. from: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/MemoryMgmt/Articles/mmAutoreleasePools.html
         int err;
 
         if (!checkDecoderCapabilities([MTLCreateSystemDefaultDevice() autorelease], params)) {
@@ -397,16 +370,14 @@ public:
             m_StreamView.wantsLayer = YES;
 
             [contentView addSubview: m_StreamView];
-
-            if (params->enableFramePacing) {
-                if (!initializeVsyncCallback(&info)) {
-                    return false;
-                }
+            m_EnableFramePacing = params->enableFramePacing;
+            if (!initializeVsyncCallback(params->frameRate)) {
+                return false;
             }
-        }
 
+        }
         return true;
-    }}
+    }
 
     void updateOverlayOnMainThread(Overlay::OverlayType type)
     { @autoreleasepool {
@@ -471,9 +442,15 @@ public:
 
     int getDecoderColorspace() override
     {
-        // macOS seems to handle Rec 601 best
-        return COLORSPACE_REC_601;
+        // REC_601 has a litte bit of red tint on grey area
+        return COLORSPACE_REC_709;
     }
+    
+    int getDecoderColorRange() override
+    {
+        return COLOR_RANGE_FULL;
+    }
+
 
     int getDecoderCapabilities() override
     {
@@ -499,15 +476,39 @@ private:
     NSView* m_StreamView;
     dispatch_block_t m_OverlayUpdateBlocks[Overlay::OverlayMax];
     NSTextField* m_OverlayTextFields[Overlay::OverlayMax];
-    CVDisplayLinkRef m_DisplayLink;
+    CADisplayLink* m_DisplayLink;
+    CADisplayLinkCreator* m_DisplayLinkCreator;
     int m_LastColorSpace;
     CGColorSpaceRef m_ColorSpace;
     SDL_mutex* m_VsyncMutex;
     SDL_cond* m_VsyncPassed;
     bool m_DirectRendering;
     bool m_EnableRasterization;
+    bool m_EnableFramePacing;
 };
 
 IFFmpegRenderer* VTRendererFactory::createRenderer() {
     return new VTRenderer();
 }
+
+@implementation CADisplayLinkCreator{
+    VTRenderer*  _renderer;
+}
+
+- (instancetype)initWithRenderer: (VTRenderer*)renderer  {
+    self = [super init];
+    if (self) {
+        _renderer = renderer;
+    }
+    return self;
+}
+
+- (void)callback:(CADisplayLink *)sender {
+    VTRenderer::displayLinkOutputCallback(sender, _renderer);
+}
+
+- (CADisplayLink*) getDisplayLink: (NSView*) view{
+    return [view displayLinkWithTarget:self selector:@selector(callback:)];
+}
+
+@end
