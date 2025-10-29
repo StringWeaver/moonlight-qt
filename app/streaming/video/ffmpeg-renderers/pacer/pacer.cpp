@@ -162,11 +162,11 @@ int Pacer::renderThread(void* context)
             me->m_FrameQueueLock.unlock();
             break;
         }
-
-        AVFrame* frame = me->m_RenderQueue.dequeue();
+        while(!me->m_RenderQueue.isEmpty()){
+            AVFrame* frame = me->m_RenderQueue.dequeue();
+            me->renderFrame(frame);
+        }
         me->m_FrameQueueLock.unlock();
-
-        me->renderFrame(frame);
     }
 
     // Notify the renderer that it is being destroyed soon
