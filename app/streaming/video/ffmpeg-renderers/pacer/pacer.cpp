@@ -34,7 +34,7 @@ Pacer::Pacer(IFFmpegRenderer* renderer, PVIDEO_STATS videoStats) :
     m_RenderThread(nullptr),
     m_VsyncThread(nullptr),
     m_Stopping(false),
-    m_LetRendererHandleFrameSkipping(false),
+    m_EnablePacing(false),
     m_VsyncSource(nullptr),
     m_VsyncRenderer(renderer),
     m_MaxVideoFps(0),
@@ -162,11 +162,11 @@ int Pacer::renderThread(void* context)
             me->m_FrameQueueLock.unlock();
             break;
         }
-        while(!me->m_RenderQueue.isEmpty()){
-            AVFrame* frame = me->m_RenderQueue.dequeue();
-            me->renderFrame(frame);
-        }
+        AVFrame* frame = me->m_RenderQueue.dequeue();
         me->m_FrameQueueLock.unlock();
+        me->renderFrame(frame);
+        me->dropFrame();
+
     }
 
     // Notify the renderer that it is being destroyed soon
@@ -178,9 +178,7 @@ int Pacer::renderThread(void* context)
 
 void Pacer::enqueueFrameForRenderingAndUnlock(AVFrame *frame)
 {
-    dropFrameForEnqueue(m_RenderQueue);
     m_RenderQueue.enqueue(frame);
-
     m_FrameQueueLock.unlock();
 
     if (m_RenderThread != nullptr) {
@@ -264,7 +262,7 @@ bool Pacer::initialize(SDL_Window* window, int maxVideoFps, bool enablePacing)
     m_MaxVideoFps = maxVideoFps;
     m_DisplayFps = StreamUtils::getDisplayRefreshRate(window);
     m_RendererAttributes = m_VsyncRenderer->getRendererAttributes();
-    m_LetRendererHandleFrameSkipping = StreamingPreferences::get()->useSystemRenderer;
+    m_EnablePacing = enablePacing;
 
     if (enablePacing) {
         SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
@@ -348,18 +346,18 @@ void Pacer::renderFrame(AVFrame* frame)
     m_VideoStats->totalRenderTime += afterRender - beforeRender;
     m_VideoStats->renderedFrames++;
     av_frame_free(&frame);
-    if(m_LetRendererHandleFrameSkipping){
-        return;
-    }
-    // Drop frames if we have too many queued up for a while
-    m_FrameQueueLock.lock();
 
+}
+
+void Pacer::dropFrame()
+{
     int frameDropTarget;
 
-    if (m_RendererAttributes & RENDERER_ATTRIBUTE_NO_BUFFERING) {
+    if ((m_RendererAttributes & RENDERER_ATTRIBUTE_NO_BUFFERING) || !m_EnablePacing) {
         // Renderers that don't buffer any frames but don't support waitToRender() need us to buffer
         // an extra frame to ensure they don't starve while waiting to present.
         frameDropTarget = 1;
+        m_FrameQueueLock.lock();
     }
     else {
         frameDropTarget = 0;
@@ -376,21 +374,17 @@ void Pacer::renderFrame(AVFrame* frame)
         if (m_RenderQueueHistory.count() == m_MaxVideoFps / 2) {
             m_RenderQueueHistory.dequeue();
         }
-
+        m_FrameQueueLock.lock();
         m_RenderQueueHistory.enqueue(m_RenderQueue.count());
     }
 
     // Catch up if we're several frames ahead
     while (m_RenderQueue.count() > frameDropTarget) {
         AVFrame* frame = m_RenderQueue.dequeue();
-
         // Drop the lock while we call av_frame_free()
-        m_FrameQueueLock.unlock();
         m_VideoStats->pacerDroppedFrames++;
         av_frame_free(&frame);
-        m_FrameQueueLock.lock();
     }
-
     m_FrameQueueLock.unlock();
 }
 
@@ -412,7 +406,6 @@ void Pacer::submitFrame(AVFrame* frame)
     // Queue the frame and possibly wake up the render thread
     m_FrameQueueLock.lock();
     if (m_VsyncSource != nullptr) {
-        dropFrameForEnqueue(m_PacingQueue);
         m_PacingQueue.enqueue(frame);
         m_FrameQueueLock.unlock();
         m_PacingQueueNotEmpty.wakeOne();

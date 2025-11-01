@@ -47,6 +47,8 @@ private:
     void enqueueFrameForRenderingAndUnlock(AVFrame* frame);
 
     void renderFrame(AVFrame* frame);
+    
+    void dropFrame();
 
     void dropFrameForEnqueue(QQueue<AVFrame*>& queue);
 
@@ -62,7 +64,7 @@ private:
     SDL_Thread* m_RenderThread;
     SDL_Thread* m_VsyncThread;
     bool m_Stopping;
-    bool m_LetRendererHandleFrameSkipping;
+    bool m_EnablePacing;
 
     IVsyncSource* m_VsyncSource;
     IFFmpegRenderer* m_VsyncRenderer;
