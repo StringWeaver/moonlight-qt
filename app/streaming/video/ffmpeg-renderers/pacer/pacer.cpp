@@ -162,10 +162,12 @@ int Pacer::renderThread(void* context)
             me->m_FrameQueueLock.unlock();
             break;
         }
+        me->dropFrame(); // drop frame before rendering to get the newest frame possible
+        SDL_assert(m_EnablePacing || m_RenderQueue.size() == 1);
         AVFrame* frame = me->m_RenderQueue.dequeue();
         me->m_FrameQueueLock.unlock();
         me->renderFrame(frame);
-        me->dropFrame();
+        
 
     }
 
@@ -357,7 +359,7 @@ void Pacer::dropFrame()
         // Renderers that don't buffer any frames but don't support waitToRender() need us to buffer
         // an extra frame to ensure they don't starve while waiting to present.
         frameDropTarget = 1;
-        m_FrameQueueLock.lock();
+        //m_FrameQueueLock.lock();
     }
     else {
         frameDropTarget = 0;
@@ -374,7 +376,7 @@ void Pacer::dropFrame()
         if (m_RenderQueueHistory.count() == m_MaxVideoFps / 2) {
             m_RenderQueueHistory.dequeue();
         }
-        m_FrameQueueLock.lock();
+        //m_FrameQueueLock.lock();
         m_RenderQueueHistory.enqueue(m_RenderQueue.count());
     }
 
@@ -385,7 +387,7 @@ void Pacer::dropFrame()
         m_VideoStats->pacerDroppedFrames++;
         av_frame_free(&frame);
     }
-    m_FrameQueueLock.unlock();
+    //m_FrameQueueLock.unlock();
 }
 
 void Pacer::dropFrameForEnqueue(QQueue<AVFrame*>& queue)
