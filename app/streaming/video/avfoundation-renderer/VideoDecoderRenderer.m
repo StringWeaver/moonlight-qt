@@ -46,6 +46,7 @@
     displayLayer.bounds =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    displayLayer.opaque = YES;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
@@ -450,7 +451,7 @@
         [_queueLock unlock];
     }
     else {
-        [self->displayLayer enqueueSampleBuffer:sampleBuffer];
+        [[self->displayLayer sampleBufferRenderer] enqueueSampleBuffer:sampleBuffer];
         CFRelease(sampleBuffer);
     }
     if (du->frameType == FRAME_TYPE_IDR && self->displayLayer.hidden == YES) {
