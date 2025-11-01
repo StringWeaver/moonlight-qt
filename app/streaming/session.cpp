@@ -15,6 +15,10 @@
 #include "video/slvid.h"
 #endif
 
+#ifdef Q_OS_DARWIN
+#include "video/avfoundation-renderer/avf_renderer.h"
+#endif
+
 #ifdef Q_OS_WIN32
 // Scaling the icon down on Win32 looks dreadful, so render at lower res
 #define ICON_SIZE 32
@@ -324,7 +328,24 @@ bool Session::chooseDecoder(StreamingPreferences::VideoDecoderSelection vds,
         chosenDecoder = nullptr;
     }
 #endif
-
+    
+#ifdef Q_OS_DARWIN
+    if(StreamingPreferences::get()->useSystemRenderer){
+        chosenDecoder = AVFRendererFactory::createDecoder();
+        if (chosenDecoder->initialize(&params)) {
+            SDL_LogInfo(SDL_LOG_CATEGORY_APPLICATION,
+                        "AVFoundation video decoder chosen");
+            return true;
+        }
+        else {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                         "Unable to load AVFoundation decoder");
+            delete chosenDecoder;
+            chosenDecoder = nullptr;
+        }
+    }
+#endif
+    
 #ifdef HAVE_FFMPEG
     chosenDecoder = new FFmpegVideoDecoder(testOnly);
     if (chosenDecoder->initialize(&params)) {

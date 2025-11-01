@@ -6,9 +6,8 @@
 //  Copyright (c) 2014 Moonlight Stream. All rights reserved.
 //
 
+#import <AVFoundation/AVFoundation.h>
 #import "VideoDecoderRenderer.h"
-#import <AppKit/AppKit.h>
-
 #include <libavcodec/avcodec.h>
 #include <libavutil/mem.h>
 #include <SDL_log.h>
@@ -28,6 +27,7 @@
     
     CADisplayLink* _displayLink;
     BOOL framePacing;
+    BOOL _enableRasterization;
     
     NSLock *_queueLock;
     NSMutableArray *_sampleBufferQueue;
@@ -42,20 +42,10 @@
     displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
     displayLayer.backgroundColor = [NSColor blackColor].CGColor;;
     
-    // Ensure the AVSampleBufferDisplayLayer is sized to preserve the aspect ratio
-    // of the video stream. We used to use AVLayerVideoGravityResizeAspect, but that
-    // respects the PAR encoded in the SPS which causes our computed video-relative
-    // touch location to be wrong in StreamView if the aspect ratio of the host
-    // desktop doesn't match the aspect ratio of the stream.
-    CGSize videoSize;
-    if (_view.bounds.size.width > _view.bounds.size.height * _streamAspectRatio) {
-        videoSize = CGSizeMake(_view.bounds.size.height * _streamAspectRatio, _view.bounds.size.height);
-    } else {
-        videoSize = CGSizeMake(_view.bounds.size.width, _view.bounds.size.width / _streamAspectRatio);
-    }
     displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds = CGRectMake(0, 0, videoSize.width, videoSize.height);
-    displayLayer.videoGravity = AVLayerVideoGravityResize;
+    displayLayer.bounds =  _view.bounds;
+    displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+    displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
@@ -75,13 +65,14 @@
     }
 }
 
-- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
+- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing useRasterization:(BOOL) useRasterization
 {
     self = [super init];
     
     _view = view;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
+    _enableRasterization = useRasterization;
     
     parameterSetBuffers = [[NSMutableArray alloc] init];
     
@@ -114,8 +105,6 @@
     [_submitThread start];
 }
 
-// TODO: Refactor this
-int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
 
 - (void)displayLinkCallback:(CADisplayLink *)sender
 {
@@ -443,6 +432,15 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit);
         CFRelease(dataBlockBuffer);
         CFRelease(frameBlockBuffer);
         return DR_NEED_IDR;
+    }
+    
+    CFArrayRef attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
+    if (attachmentsArray && CFArrayGetCount(attachmentsArray) > 0) {
+        CFMutableDictionaryRef attachments = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachmentsArray, 0);
+        if (attachments) {
+            // sunshine don't use B-frames, hint decoder about this.
+            CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanTrue);
+        }
     }
 
     // Enqueue the next frame

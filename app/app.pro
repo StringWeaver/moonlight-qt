@@ -411,12 +411,12 @@ macx {
         streaming/video/ffmpeg-renderers/vt_avsamplelayer.mm \
         streaming/video/ffmpeg-renderers/vt_metal.mm \
         streaming/video/avfoundation-renderer/VideoDecoderRenderer.m \
-        streaming/video/avfoundation-renderer/avfoundationrenderer.cpp
+        streaming/video/avfoundation-renderer/avf_renderer.mm
 
     HEADERS += \
         streaming/video/ffmpeg-renderers/vt.h \
         streaming/video/avfoundation-renderer/VideoDecoderRenderer.h \
-        streaming/video/avfoundation-renderer/avfoundationrenderer.h
+        streaming/video/avfoundation-renderer/avf_renderer.h
 }
 discord-rpc {
     message(Discord integration enabled)
