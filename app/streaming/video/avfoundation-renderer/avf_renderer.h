@@ -1,6 +1,6 @@
 
 #pragma once
-#include "decoder.h"
+#include "streaming/video/decoder.h"
 extern "C" {
     #include <libavcodec/avcodec.h>
 }
