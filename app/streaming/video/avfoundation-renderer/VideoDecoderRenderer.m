@@ -46,6 +46,7 @@
     displayLayer.bounds =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    displayLayer.drawsAsynchronously = YES;
     displayLayer.opaque = YES;
 
     // Hide the layer until we get an IDR frame. This ensures we
