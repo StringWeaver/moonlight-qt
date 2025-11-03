@@ -441,7 +441,7 @@
         CFMutableDictionaryRef attachments = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachmentsArray, 0);
         if (attachments) {
             // sunshine don't use B-frames, hint decoder about this.
-            CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanTrue);
+            CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanFalse);
         }
     }
 
