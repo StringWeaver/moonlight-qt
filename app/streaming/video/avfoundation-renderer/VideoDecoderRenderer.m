@@ -27,8 +27,7 @@
     
     CADisplayLink* _displayLink;
     BOOL framePacing;
-    BOOL _enableRasterization;
-    
+
     NSLock *_queueLock;
     NSMutableArray *_sampleBufferQueue;
     NSThread *_submitThread;
@@ -46,20 +45,12 @@
     displayLayer.bounds =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-    displayLayer.drawsAsynchronously = YES;
-    displayLayer.opaque = YES;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
-    
-    if (oldLayer != nil) {
-        // Switch out the old display layer with the new one
-        [_view.layer replaceSublayer:oldLayer with:displayLayer];
-    }
-    else {
-        [_view.layer addSublayer:displayLayer];
-    }
+    displayLayer.opaque = YES;
+    _view.layer = displayLayer;
     
     if (formatDesc != nil) {
         CFRelease(formatDesc);
@@ -67,15 +58,14 @@
     }
 }
 
-- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing useRasterization:(BOOL) useRasterization
+- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
 {
     self = [super init];
     
     _view = view;
     _streamAspectRatio = aspectRatio;
     framePacing = useFramePacing;
-    _enableRasterization = useRasterization;
-    
+
     parameterSetBuffers = [[NSMutableArray alloc] init];
     
     [self reinitializeDisplayLayer];

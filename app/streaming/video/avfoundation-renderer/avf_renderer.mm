@@ -31,7 +31,7 @@ bool AVFoundationVideoRenderer::initialize(PDECODER_PARAMETERS params) {
 
     // SDL adds its own content view to listen for events.
     m_StreamView = info.info.cocoa.window.contentView;
-    m_Renderer = [[VideoDecoderRenderer alloc] initWithView:m_StreamView streamAspectRatio:(float)params->width / params->height useFramePacing:params->enableVsync useRasterization:StreamingPreferences::get()->enableVTRasterization];
+    m_Renderer = [[VideoDecoderRenderer alloc] initWithView:m_StreamView streamAspectRatio:(float)params->width / params->height useFramePacing:params->enableVsync];
     if(m_Renderer){
         [m_Renderer setupWithVideoFormat:params->videoFormat width:params->width height:params->height frameRate:params->frameRate];
         [m_Renderer start];
