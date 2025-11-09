@@ -50,6 +50,7 @@
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
     displayLayer.opaque = YES;
+    displayLayer.magnificationFilter = kCAFilterNearest;
     _view.layer = displayLayer;
     
     if (formatDesc != nil) {
@@ -94,6 +95,7 @@
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 
     _submitThread = [[NSThread alloc] initWithTarget:self selector:@selector(decodeThreadMain) object:nil];
+    [_submitThread setQualityOfService:NSQualityOfServiceUserInteractive];
     [_submitThread start];
 }
 
