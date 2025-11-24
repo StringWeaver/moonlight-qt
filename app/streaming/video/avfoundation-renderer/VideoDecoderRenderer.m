@@ -42,7 +42,7 @@
     displayLayer.backgroundColor = [NSColor blackColor].CGColor;;
     
     displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.frame =  _view.bounds;
+    displayLayer.bounds =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
@@ -50,16 +50,8 @@
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
     displayLayer.opaque = YES;
-
+    displayLayer.magnificationFilter = kCAFilterNearest;
     _view.layer = displayLayer;
-    NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f, backingScaleFactor:%.2f", (int)displayLayer.bounds.size.width, (int)displayLayer.bounds.size.height, displayLayer.contentsScale, _view.window.backingScaleFactor);
-//    if (oldLayer != nil) {
-//        // Switch out the old display layer with the new one
-//        [_view.layer replaceSublayer:oldLayer with:displayLayer];
-//    }
-//    else {
-//        [_view.layer addSublayer:displayLayer];
-//    }
     
     if (formatDesc != nil) {
         CFRelease(formatDesc);
@@ -98,7 +90,7 @@
     _running = YES;
     
     _displayLink = [_view displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
-    //_displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
+    _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
 
     [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 

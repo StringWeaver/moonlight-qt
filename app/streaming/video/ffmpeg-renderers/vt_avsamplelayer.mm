@@ -332,25 +332,23 @@ public:
             // SDL adds its own content view to listen for events.
             // We need to add a subview for our display layer.
             NSView* contentView = info.info.cocoa.window.contentView;
-            dispatch_async(dispatch_get_main_queue(), dispatch_block_create(DISPATCH_BLOCK_DETACHED, ^{
-                m_StreamView = [[VTView alloc] initWithFrame:contentView.bounds];
-                
-                m_DisplayLayer = [[AVSampleBufferDisplayLayer alloc] init];
-                m_DisplayLayer.bounds = m_StreamView.bounds;
-                m_DisplayLayer.position = CGPointMake(CGRectGetMidX(m_StreamView.bounds), CGRectGetMidY(m_StreamView.bounds));
-                m_DisplayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-                m_DisplayLayer.opaque = YES;
-                
-                
-                // Create a layer-hosted view by setting the layer before wantsLayer
-                // This avoids us having to add our AVSampleBufferDisplayLayer as a
-                // sublayer of a layer-backed view which leaves a useless layer in
-                // the middle.
-                m_StreamView.layer = m_DisplayLayer;
-                m_StreamView.wantsLayer = YES;
-                
-                [contentView addSubview: m_StreamView];
-            }));
+            m_StreamView = [[VTView alloc] initWithFrame:contentView.bounds];
+
+            m_DisplayLayer = [[AVSampleBufferDisplayLayer alloc] init];
+            m_DisplayLayer.bounds = m_StreamView.bounds;
+            m_DisplayLayer.position = CGPointMake(CGRectGetMidX(m_StreamView.bounds), CGRectGetMidY(m_StreamView.bounds));
+            m_DisplayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
+            m_DisplayLayer.opaque = YES;
+
+
+            // Create a layer-hosted view by setting the layer before wantsLayer
+            // This avoids us having to add our AVSampleBufferDisplayLayer as a
+            // sublayer of a layer-backed view which leaves a useless layer in
+            // the middle.
+            m_StreamView.layer = m_DisplayLayer;
+            m_StreamView.wantsLayer = YES;
+
+            [contentView addSubview: m_StreamView];
             m_EnableFramePacing = params->enableFramePacing;
             if (!initializeVsyncCallback(params->frameRate)) {
                 return false;
