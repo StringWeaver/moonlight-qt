@@ -36,22 +36,26 @@
 
 - (void)reinitializeDisplayLayer
 {
-    CALayer *oldLayer = displayLayer;
-    
-    displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
+    NSAssert([NSThread isMainThread], @"this method must be execute on main thread!");
+    if(_view.wantsLayer == YES){
+        NSAssert(_view.layer && [_view.layer isKindOfClass:[AVSampleBufferDisplayLayer class]], @"_view.layer must be AVSampleBufferDisplayLayer");
+        displayLayer = (AVSampleBufferDisplayLayer *)_view.layer;
+    }else{
+        displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
+        _view.layer = displayLayer;
+        _view.wantsLayer = YES;
+    }
     displayLayer.backgroundColor = [NSColor blackColor].CGColor;;
     
-    displayLayer.position = CGPointMake(CGRectGetMidX(_view.bounds), CGRectGetMidY(_view.bounds));
-    displayLayer.bounds =  _view.bounds;
+    displayLayer.frame =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
     displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
-    displayLayer.opaque = YES;
     displayLayer.magnificationFilter = kCAFilterNearest;
-    _view.layer = displayLayer;
+    NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)self->_view.layer.bounds.size.width, (int)self->_view.layer.bounds.size.height, self->_view.layer.contentsScale);
     
     if (formatDesc != nil) {
         CFRelease(formatDesc);
@@ -355,7 +359,9 @@
         
         // Recreate the display layer. We are already on the main thread,
         // so this is safe to do right here.
-        [self reinitializeDisplayLayer];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self reinitializeDisplayLayer];
+        });
         
         // Request an IDR frame to initialize the new decoder
         free(data);
@@ -444,6 +450,9 @@
         [_queueLock unlock];
     }
     else {
+        while(![self->displayLayer isReadyForMoreMediaData]){
+            usleep(1000);
+        }
         [[self->displayLayer sampleBufferRenderer] enqueueSampleBuffer:sampleBuffer];
         CFRelease(sampleBuffer);
     }
