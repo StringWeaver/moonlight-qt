@@ -134,7 +134,6 @@ public:
     Q_PROPERTY(bool enableHdr MEMBER enableHdr NOTIFY enableHdrChanged)
     Q_PROPERTY(bool enableYUV444 MEMBER enableYUV444 NOTIFY enableYUV444Changed)
     Q_PROPERTY(bool useSystemRenderer MEMBER useSystemRenderer NOTIFY useSystemRendererChanged)
-    Q_PROPERTY(bool enableVTRasterization MEMBER enableVTRasterization NOTIFY enableVTRasterizationChanged)
     Q_PROPERTY(VideoDecoderSelection videoDecoderSelection MEMBER videoDecoderSelection NOTIFY videoDecoderSelectionChanged)
     Q_PROPERTY(WindowMode windowMode MEMBER windowMode NOTIFY windowModeChanged)
     Q_PROPERTY(WindowMode recommendedFullScreenMode MEMBER recommendedFullScreenMode CONSTANT)
@@ -184,7 +183,6 @@ public:
     bool enableHdr;
     bool enableYUV444;
     bool useSystemRenderer;
-    bool enableVTRasterization;
     VideoDecoderSelection videoDecoderSelection;
     WindowMode windowMode;
     WindowMode recommendedFullScreenMode;
@@ -211,7 +209,6 @@ signals:
     void enableHdrChanged();
     void enableYUV444Changed();
     void useSystemRendererChanged();
-    void enableVTRasterizationChanged();
     void videoDecoderSelectionChanged();
     void uiDisplayModeChanged();
     void windowModeChanged();

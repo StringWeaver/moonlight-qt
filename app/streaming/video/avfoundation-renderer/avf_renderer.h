@@ -7,11 +7,11 @@ extern "C" {
 #ifdef __OBJC__
 #import "VideoDecoderRenderer.h"
 
-@interface AVFView : NSView
+@interface AVKitView : NSView
 - (NSView *)hitTest:(NSPoint)point;
 @end
 
-@implementation AVFView
+@implementation AVKitView
 
 - (NSView *)hitTest:(NSPoint)point {
     Q_UNUSED(point);
@@ -38,7 +38,7 @@ public:
     
 private:
     VideoDecoderRenderer* m_Renderer;
-    AVFView* m_StreamView;
+    AVKitView* m_StreamView;
 };
 #endif
 class AVFRendererFactory {

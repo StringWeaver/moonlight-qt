@@ -61,7 +61,6 @@ public:
                 updateOverlayOnMainThread((Overlay::OverlayType)i);
             });
         }
-        m_EnableRasterization = StreamingPreferences::get()->enableVTRasterization;
     }
 
     virtual ~VTRenderer() override
@@ -462,7 +461,6 @@ private:
     SDL_mutex* m_VsyncMutex;
     SDL_cond* m_VsyncPassed;
     bool m_DirectRendering;
-    bool m_EnableRasterization;
     bool m_EnableFramePacing;
 };
 

@@ -1698,22 +1698,6 @@ Flickable {
                     ToolTip.visible: hovered
                     ToolTip.text:qsTr("Use Apple's VideoToolbox to render video, have a better resolution scaling and chroma upampling quality than metal renderer.")
                 }
-                CheckBox {
-                    id: enableVTRasterization
-                    width: parent.width
-                    hoverEnabled: true
-                    text: qsTr("Rasterization(MacOS)")
-                    font.pointSize:  12
-                    enabled: StreamingPreferences.useSystemRenderer
-                    checked: StreamingPreferences.enableVTRasterization
-                    onCheckedChanged: {
-                        StreamingPreferences.enableVTRasterization = checked
-                    }
-                    ToolTip.delay: 1000
-                    ToolTip.timeout: 5000
-                    ToolTip.visible: hovered
-                    ToolTip.text: qsTr("Enable: lower latency, Disable: higher quality, if you encounter any image issue, enable this.")
-                }
 
                 CheckBox {
                     id: unlockBitrate

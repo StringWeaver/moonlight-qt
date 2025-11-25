@@ -25,11 +25,8 @@
     NSData *contentLightLevelInfo;
     CMVideoFormatDescriptionRef formatDesc;
     
-    CADisplayLink* _displayLink;
     BOOL framePacing;
 
-    NSLock *_queueLock;
-    NSMutableArray *_sampleBufferQueue;
     NSThread *_submitThread;
     BOOL _running;
 }
@@ -55,6 +52,7 @@
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
     displayLayer.magnificationFilter = kCAFilterNearest;
+    displayLayer.drawsAsynchronously = framePacing;
     NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)self->_view.layer.bounds.size.width, (int)self->_view.layer.bounds.size.height, self->_view.layer.contentsScale);
     
     if (formatDesc != nil) {
@@ -75,8 +73,6 @@
     
     [self reinitializeDisplayLayer];
     
-    _sampleBufferQueue = [[NSMutableArray alloc] init];
-    _queueLock = [[NSLock alloc] init];
     _running = NO;
     
     return self;
@@ -93,10 +89,7 @@
     if (_running) return;
     _running = YES;
     
-    _displayLink = [_view displayLinkWithTarget:self selector:@selector(displayLinkCallback:)];
-    _displayLink.preferredFrameRateRange = CAFrameRateRangeMake(self->frameRate, self->frameRate, self->frameRate);
 
-    [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSDefaultRunLoopMode];
 
     _submitThread = [[NSThread alloc] initWithTarget:self selector:@selector(decodeThreadMain) object:nil];
     [_submitThread setQualityOfService:NSQualityOfServiceUserInteractive];
@@ -104,35 +97,6 @@
 }
 
 
-- (void)displayLinkCallback:(CADisplayLink *)sender
-{
-    if(!framePacing) {
-        return;
-    }
-    // Calculate the actual display refresh rate
-    double displayRefreshRate = 1 / (_displayLink.targetTimestamp - _displayLink.timestamp);
-    
-    // Only keep 1 buffer frame if the display refresh rate is >= 90% of our stream frame rate.
-    // Battery saver, accessibility settings, or device thermals can cause the actual
-    // refresh rate of the display to drop below the physical maximum.
-    NSUInteger bufferSize = 0;
-    if (displayRefreshRate >= frameRate * 0.9f) {
-        bufferSize = 1;
-    }
-    // Always try to pop one frame per refresh
-    [_queueLock lock];
-    do {
-        if(_sampleBufferQueue.count == 0) {
-            break;
-        }
-        
-        CMSampleBufferRef sampleBuffer = (__bridge CMSampleBufferRef)_sampleBufferQueue.firstObject;
-        [_sampleBufferQueue removeObjectAtIndex:0];
-        [self->displayLayer enqueueSampleBuffer:sampleBuffer];
-        CFRelease(sampleBuffer);
-    } while (_sampleBufferQueue.count > bufferSize); // If possible, keep 1 frame to avoid jittering.
-    [_queueLock unlock];
-}
 
 - (void)decodeThreadMain {
     
@@ -156,16 +120,7 @@
         [_submitThread cancel];
         _submitThread = nil;
     }
-    [_queueLock lock];
-    while (_sampleBufferQueue.count > 0) {
-        CMSampleBufferRef sampleBuffer = (__bridge CMSampleBufferRef)_sampleBufferQueue.firstObject;
-        [_sampleBufferQueue removeObjectAtIndex:0];
-        CFRelease(sampleBuffer);
-    }
-    [_queueLock unlock];
-    if(_displayLink) {
-        [_displayLink invalidate];
-    }
+
 }
 
 #define NALU_START_PREFIX_SIZE 3
@@ -444,18 +399,13 @@
     }
 
     // Enqueue the next frame
-    if(framePacing) {
-        [_queueLock lock];
-        [_sampleBufferQueue addObject:(__bridge id)sampleBuffer];
-        [_queueLock unlock];
+
+    while(![self->displayLayer isReadyForMoreMediaData]){
+        usleep(1000);
     }
-    else {
-        while(![self->displayLayer isReadyForMoreMediaData]){
-            usleep(1000);
-        }
-        [[self->displayLayer sampleBufferRenderer] enqueueSampleBuffer:sampleBuffer];
-        CFRelease(sampleBuffer);
-    }
+    [[self->displayLayer sampleBufferRenderer] enqueueSampleBuffer:sampleBuffer];
+    CFRelease(sampleBuffer);
+    
     if (du->frameType == FRAME_TYPE_IDR && self->displayLayer.hidden == YES) {
         dispatch_async(dispatch_get_main_queue(), ^{
             self->displayLayer.hidden = NO;

@@ -1,5 +1,4 @@
 #include "avf_renderer.h"
-
 #import <Cocoa/Cocoa.h>
 #include <SDL_syswm.h>
 #include "settings/streamingpreferences.h"
@@ -30,6 +29,9 @@ bool AVFoundationVideoRenderer::initialize(PDECODER_PARAMETERS params) {
     SDL_assert(info.subsystem == SDL_SYSWM_COCOA);
 
     // SDL adds its own content view to listen for events.
+    NSWindow* window = info.info.cocoa.window;
+    SDL_assert(window.allowsConcurrentViewDrawing == YES);
+    SDL_assert(window.backingType == NSBackingStoreBuffered);
     m_StreamView = info.info.cocoa.window.contentView;
     m_Renderer = [[VideoDecoderRenderer alloc] initWithView:m_StreamView streamAspectRatio:(float)params->width / params->height useFramePacing:params->enableVsync];
     if(m_Renderer){
