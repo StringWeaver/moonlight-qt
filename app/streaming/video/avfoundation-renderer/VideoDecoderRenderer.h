@@ -11,7 +11,7 @@
 
 @interface VideoDecoderRenderer : NSObject
 
-- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing;
+- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useVSync:(BOOL)useVSync useFramePacing:(BOOL)useFramePacing;
 
 - (void)setupWithVideoFormat:(int)videoFormat width:(int)videoWidth height:(int)videoHeight frameRate:(int)frameRate;
 - (void)start;

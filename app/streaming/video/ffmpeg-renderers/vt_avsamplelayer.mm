@@ -344,7 +344,7 @@ public:
             // This avoids us having to add our AVSampleBufferDisplayLayer as a
             // sublayer of a layer-backed view which leaves a useless layer in
             // the middle.
-            m_StreamView.layer = m_DisplayLayer;
+            [m_StreamView setLayer:m_DisplayLayer];
             m_StreamView.wantsLayer = YES;
 
             [contentView addSubview: m_StreamView];

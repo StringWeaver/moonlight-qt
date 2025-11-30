@@ -25,6 +25,7 @@
     NSData *contentLightLevelInfo;
     CMVideoFormatDescriptionRef formatDesc;
     
+    BOOL VSync;
     BOOL framePacing;
 
     NSThread *_submitThread;
@@ -52,7 +53,7 @@
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
     displayLayer.magnificationFilter = kCAFilterNearest;
-    displayLayer.drawsAsynchronously = framePacing;
+    displayLayer.drawsAsynchronously = VSync;
     NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)self->_view.layer.bounds.size.width, (int)self->_view.layer.bounds.size.height, self->_view.layer.contentsScale);
     
     if (formatDesc != nil) {
@@ -61,12 +62,13 @@
     }
 }
 
-- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useFramePacing:(BOOL)useFramePacing
+- (id)initWithView:(NSView*)view streamAspectRatio:(float)aspectRatio useVSync:(BOOL)useVSync useFramePacing:(BOOL)useFramePacing
 {
     self = [super init];
     
     _view = view;
     _streamAspectRatio = aspectRatio;
+    VSync = useVSync;
     framePacing = useFramePacing;
 
     parameterSetBuffers = [[NSMutableArray alloc] init];
@@ -395,6 +397,10 @@
         if (attachments) {
             // sunshine don't use B-frames, hint decoder about this.
             CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanFalse);
+            if(!framePacing){
+                CFDictionarySetValue(attachments, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
+            }
+            
         }
     }
 
