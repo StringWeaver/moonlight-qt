@@ -4,7 +4,7 @@
 #include "settings/streamingpreferences.h"
 
 
-AVFoundationVideoRenderer::AVFoundationVideoRenderer(): m_Renderer(nil), m_StreamView(nil)
+AVFoundationVideoRenderer::AVFoundationVideoRenderer(): m_Renderer(nil)
 {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 }
@@ -32,8 +32,7 @@ bool AVFoundationVideoRenderer::initialize(PDECODER_PARAMETERS params) {
     NSWindow* window = info.info.cocoa.window;
     SDL_assert(window.allowsConcurrentViewDrawing == YES);
     SDL_assert(window.backingType == NSBackingStoreBuffered);
-    m_StreamView = info.info.cocoa.window.contentView;
-    m_Renderer = [[VideoDecoderRenderer alloc] initWithView:m_StreamView streamAspectRatio:(float)params->width / params->height useVSync:params->enableVsync useFramePacing:params->enableFramePacing];
+    m_Renderer = [[VideoDecoderRenderer alloc] initWithView:window.contentView streamAspectRatio:(float)params->width / params->height useVSync:params->enableVsync useFramePacing:params->enableFramePacing];
     if(m_Renderer){
         [m_Renderer setupWithVideoFormat:params->videoFormat width:params->width height:params->height frameRate:params->frameRate];
         [m_Renderer start];

@@ -178,7 +178,7 @@ public:
         OSStatus status;
         CVPixelBufferRef pixBuf = reinterpret_cast<CVPixelBufferRef>(frame->data[3]);
 
-        if (m_DisplayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+        if (m_DisplayLayer.sampleBufferRenderer.status == AVQueuedSampleBufferRenderingStatusFailed) {
             SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
                         "Resetting failed AVSampleBufferDisplay layer");
 

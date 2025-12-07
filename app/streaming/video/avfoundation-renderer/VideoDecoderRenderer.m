@@ -11,9 +11,36 @@
 #include <libavcodec/avcodec.h>
 #include <libavutil/mem.h>
 #include <SDL_log.h>
+@interface AVKitView : NSView
+@property (nonatomic, readonly) AVSampleBufferDisplayLayer *sampleBufferLayer;
+- (NSView *)hitTest:(NSPoint)point;
+@end
+@implementation AVKitView
+
+- (instancetype)initWithFrame:(NSRect)frameRect {
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        self.wantsLayer = YES;
+    }
+    return self;
+}
+- (CALayer *)makeBackingLayer {
+    return [AVSampleBufferDisplayLayer layer];
+}
+
+
+- (AVSampleBufferDisplayLayer *)sampleBufferLayer {
+    return (AVSampleBufferDisplayLayer *)self.layer;
+}
+
+- (NSView *)hitTest:(NSPoint)point {
+    return nil;
+}
+@end
 
 @implementation VideoDecoderRenderer {
     NSView* _view;
+    AVKitView* _videoView;
     float _streamAspectRatio;
     
     AVSampleBufferDisplayLayer* displayLayer;
@@ -35,19 +62,25 @@
 - (void)reinitializeDisplayLayer
 {
     NSAssert([NSThread isMainThread], @"this method must be execute on main thread!");
-    if(_view.wantsLayer == YES){
-        NSAssert(_view.layer && [_view.layer isKindOfClass:[AVSampleBufferDisplayLayer class]], @"_view.layer must be AVSampleBufferDisplayLayer");
-        displayLayer = (AVSampleBufferDisplayLayer *)_view.layer;
-    }else{
-        displayLayer = [[AVSampleBufferDisplayLayer alloc] init];
-        _view.layer = displayLayer;
-        _view.wantsLayer = YES;
+    if (_videoView) {
+        [_videoView removeFromSuperview];
+        _videoView = nil;
     }
+    _videoView = [[AVKitView alloc] init];
+    _videoView.translatesAutoresizingMaskIntoConstraints = NO;
+    displayLayer = _videoView.sampleBufferLayer;
+    
+    [_view addSubview:_videoView];
+    [NSLayoutConstraint activateConstraints:@[
+        [_videoView.topAnchor constraintEqualToAnchor:_view.topAnchor],
+        [_videoView.bottomAnchor constraintEqualToAnchor:_view.bottomAnchor],
+        [_videoView.leadingAnchor constraintEqualToAnchor:_view.leadingAnchor],
+        [_videoView.trailingAnchor constraintEqualToAnchor:_view.trailingAnchor]
+    ]];
+    
     displayLayer.backgroundColor = [NSColor blackColor].CGColor;;
     
-    displayLayer.frame =  _view.bounds;
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
-    displayLayer.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
@@ -311,8 +344,8 @@
     }
     
     // Check for previous decoder errors before doing anything
-    if (displayLayer.status == AVQueuedSampleBufferRenderingStatusFailed) {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Display layer rendering failed: %@", displayLayer.error);
+    if (displayLayer.sampleBufferRenderer.status == AVQueuedSampleBufferRenderingStatusFailed) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Display layer rendering failed: %s", [[displayLayer.error localizedDescription] UTF8String]);
         
         // Recreate the display layer. We are already on the main thread,
         // so this is safe to do right here.
@@ -397,6 +430,9 @@
         if (attachments) {
             // sunshine don't use B-frames, hint decoder about this.
             CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanFalse);
+            if (@available(macOS 14.4, *)) {
+                [displayLayer.sampleBufferRenderer expectMonotonicallyIncreasingUpcomingSampleBufferPresentationTimes];
+            }
             if(!framePacing){
                 CFDictionarySetValue(attachments, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
             }
