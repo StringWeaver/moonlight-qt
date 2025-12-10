@@ -86,8 +86,11 @@
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
     displayLayer.magnificationFilter = kCAFilterNearest;
+    _view.layer.magnificationFilter = kCAFilterNearest;
     displayLayer.drawsAsynchronously = VSync;
-    NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)self->_view.layer.bounds.size.width, (int)self->_view.layer.bounds.size.height, self->_view.layer.contentsScale);
+    _videoView.layer.contentsScale  = _videoView.window.backingScaleFactor;
+    NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)_videoView.layer.bounds.size.width, (int)_videoView.layer.bounds.size.height, _videoView.layer.contentsScale);
+    NSLog(@"ContentLayer Point w: %d, h: %d, scale: %.2f", (int)_view.layer.bounds.size.width, (int)_view.layer.bounds.size.height, _view.layer.contentsScale);
     
     if (formatDesc != nil) {
         CFRelease(formatDesc);

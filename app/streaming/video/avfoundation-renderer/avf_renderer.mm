@@ -31,6 +31,7 @@ bool AVFoundationVideoRenderer::initialize(PDECODER_PARAMETERS params) {
     // SDL adds its own content view to listen for events.
     NSWindow* window = info.info.cocoa.window;
     SDL_assert(window.allowsConcurrentViewDrawing == YES);
+    window.backingType = NSBackingStoreBuffered;
     SDL_assert(window.backingType == NSBackingStoreBuffered);
     m_Renderer = [[VideoDecoderRenderer alloc] initWithView:window.contentView streamAspectRatio:(float)params->width / params->height useVSync:params->enableVsync useFramePacing:params->enableFramePacing];
     if(m_Renderer){
