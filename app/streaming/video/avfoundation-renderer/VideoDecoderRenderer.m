@@ -58,7 +58,32 @@
     NSThread *_submitThread;
     BOOL _running;
 }
+static void ApplyMagFilterToLayer(CALayer *layer, bool async) {
+    if (!layer) return;
+    
+    layer.magnificationFilter = kCAFilterNearest; // linear filter is a bit blurry
+    if(async) { // don‘t change default value of other layers if we decide not to use async
+        layer.drawsAsynchronously = YES;
+    }
+    for (CALayer *sublayer in layer.sublayers) {
+        ApplyMagFilterToLayer(sublayer, async);
+    }
+}
+static void ApplyMagFilterToSubViews(NSView *view, bool async) {
+    if(!view) return;
+    ApplyMagFilterToLayer(view.layer, async);
+    for (NSView *sub in view.subviews) {
+        ApplyMagFilterToSubViews(sub, async);
+    }
 
+}
+static void ApplyMagFilterToSuperViews(NSView *view, bool async) {
+    if(!view) return;
+    view.layer.contentsScale  = view.window.backingScaleFactor;
+    ApplyMagFilterToLayer(view.layer, async);
+    ApplyMagFilterToSuperViews(view.superview, async);
+
+}
 - (void)reinitializeDisplayLayer
 {
     NSAssert([NSThread isMainThread], @"this method must be execute on main thread!");
@@ -85,12 +110,14 @@
     // Hide the layer until we get an IDR frame. This ensures we
     // can see the loading progress label as the stream is starting.
     displayLayer.hidden = YES;
-    displayLayer.magnificationFilter = kCAFilterNearest;
-    _view.layer.magnificationFilter = kCAFilterNearest;
-    displayLayer.drawsAsynchronously = VSync;
-    _videoView.layer.contentsScale  = _videoView.window.backingScaleFactor;
-    NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)_videoView.layer.bounds.size.width, (int)_videoView.layer.bounds.size.height, _videoView.layer.contentsScale);
-    NSLog(@"ContentLayer Point w: %d, h: %d, scale: %.2f", (int)_view.layer.bounds.size.width, (int)_view.layer.bounds.size.height, _view.layer.contentsScale);
+    
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        ApplyMagFilterToSubViews(_videoView, VSync);
+        ApplyMagFilterToSuperViews(_videoView, VSync);
+        NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)_videoView.layer.bounds.size.width, (int)_videoView.layer.bounds.size.height, _videoView.layer.contentsScale);
+        NSLog(@"ContentLayer Point w: %d, h: %d, scale: %.2f", (int)_view.layer.bounds.size.width, (int)_view.layer.bounds.size.height, _view.layer.contentsScale);
+    });
+    
     
     if (formatDesc != nil) {
         CFRelease(formatDesc);
@@ -433,11 +460,9 @@
         if (attachments) {
             // sunshine don't use B-frames, hint decoder about this.
             CFDictionarySetValue(attachments, kCMSampleAttachmentKey_EarlierDisplayTimesAllowed, kCFBooleanFalse);
+            CFDictionarySetValue(attachments, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
             if (@available(macOS 14.4, *)) {
                 [displayLayer.sampleBufferRenderer expectMonotonicallyIncreasingUpcomingSampleBufferPresentationTimes];
-            }
-            if(!framePacing){
-                CFDictionarySetValue(attachments, kCMSampleAttachmentKey_DisplayImmediately, kCFBooleanTrue);
             }
             
         }
