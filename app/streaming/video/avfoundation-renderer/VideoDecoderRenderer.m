@@ -58,30 +58,30 @@
     NSThread *_submitThread;
     BOOL _running;
 }
-static void ApplyMagFilterToLayer(CALayer *layer, bool async) {
+static void ModifyLayers(CALayer *layer, bool async) {
     if (!layer) return;
     
-    layer.magnificationFilter = kCAFilterNearest; // linear filter is a bit blurry
+    //layer.magnificationFilter = kCAFilterNearest; // linear filter is a bit blurry
     if(async) { // don‘t change default value of other layers if we decide not to use async
         layer.drawsAsynchronously = YES;
     }
     for (CALayer *sublayer in layer.sublayers) {
-        ApplyMagFilterToLayer(sublayer, async);
+        ModifyLayers(sublayer, async);
     }
 }
-static void ApplyMagFilterToSubViews(NSView *view, bool async) {
+static void ModifySubViews(NSView *view, bool async) {
     if(!view) return;
-    ApplyMagFilterToLayer(view.layer, async);
+    ModifyLayers(view.layer, async);
     for (NSView *sub in view.subviews) {
-        ApplyMagFilterToSubViews(sub, async);
+        ModifySubViews(sub, async);
     }
 
 }
-static void ApplyMagFilterToSuperViews(NSView *view, bool async) {
+static void ModifySuperViews(NSView *view, bool async) {
     if(!view) return;
     view.layer.contentsScale  = view.window.backingScaleFactor;
-    ApplyMagFilterToLayer(view.layer, async);
-    ApplyMagFilterToSuperViews(view.superview, async);
+    ModifyLayers(view.layer, async);
+    ModifySuperViews(view.superview, async);
 
 }
 - (void)reinitializeDisplayLayer
@@ -102,7 +102,8 @@ static void ApplyMagFilterToSuperViews(NSView *view, bool async) {
         [_videoView.leadingAnchor constraintEqualToAnchor:_view.leadingAnchor],
         [_videoView.trailingAnchor constraintEqualToAnchor:_view.trailingAnchor]
     ]];
-    
+//    displayLayer = [[AVSampleBufferDisplayLayer alloc]init];
+//    _view.layer = displayLayer;
     displayLayer.backgroundColor = [NSColor blackColor].CGColor;;
     
     displayLayer.videoGravity = AVLayerVideoGravityResizeAspect;
@@ -112,10 +113,10 @@ static void ApplyMagFilterToSuperViews(NSView *view, bool async) {
     displayLayer.hidden = YES;
     
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-        ApplyMagFilterToSubViews(_videoView, VSync);
-        ApplyMagFilterToSuperViews(_videoView, VSync);
+        ModifySuperViews(_videoView, VSync);
         NSLog(@"DisplayLayer Point w: %d, h: %d, scale: %.2f", (int)_videoView.layer.bounds.size.width, (int)_videoView.layer.bounds.size.height, _videoView.layer.contentsScale);
         NSLog(@"ContentLayer Point w: %d, h: %d, scale: %.2f", (int)_view.layer.bounds.size.width, (int)_view.layer.bounds.size.height, _view.layer.contentsScale);
+        NSLog(@"_view.layer.magnificationFilter = %@",self->_view.layer.magnificationFilter);
     });
     
     
